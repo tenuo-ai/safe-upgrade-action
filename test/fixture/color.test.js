@@ -1,8 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const colors = require("picocolors");
+const color = require("./src/color.js");
 
-test("exposes the color helpers used by this project", () => {
-  assert.equal(typeof colors.red, "function");
-  assert.equal(typeof colors.bold, "function");
+test("formats errors through the dependency", () => {
+  assert.equal(color.error("failed"), "failed");
 });
