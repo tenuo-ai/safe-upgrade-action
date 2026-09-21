@@ -47,6 +47,7 @@ jobs:
           package: postcss
           version: 8.4.35
           comment: "false"
+          allow-transitive: "true"
           working-directory: ${{ steps.fixture.outputs.path }}
       - name: Verify structured output
         shell: bash
