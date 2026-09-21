@@ -54,5 +54,10 @@ jobs:
           RESULT_STATUS: ${{ steps.safe-upgrade.outputs.status }}
           REPORT_PATH: ${{ steps.safe-upgrade.outputs.report-path }}
         run: |
-          test "$RESULT_STATUS" = "verified"
+          test "$RESULT_STATUS" = "indeterminate"
           test -f "$REPORT_PATH"
+          jq -e '
+            (.finalState.baselineChecks | length > 0) and
+            (.finalState.postChangeChecks | length > 0) and
+            ([.finalState.baselineChecks[], .finalState.postChangeChecks[]] | all(.outcome == "passed"))
+          ' "$REPORT_PATH"
