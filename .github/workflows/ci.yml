@@ -44,10 +44,9 @@ jobs:
         continue-on-error: true
         uses: ./
         with:
-          package: postcss
-          version: 8.4.35
+          package: picocolors
+          version: 1.1.1
           comment: "false"
-          allow-transitive: "true"
           working-directory: ${{ steps.fixture.outputs.path }}
       - name: Verify structured output
         shell: bash
