@@ -1,0 +1,8 @@
+{
+  "name": "safe-upgrade-action-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "postcss": "7.0.39"
+  }
+}

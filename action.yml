@@ -1,0 +1,136 @@
+name: Safe Upgrade
+description: Assess dependency upgrade pull requests with repository evidence and task-scoped authority
+author: Tenuo Engineering
+
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  package:
+    description: Package name. Inferred from supported Dependabot and Renovate pull requests when omitted.
+    required: false
+    default: ""
+  version:
+    description: Exact target version. Inferred from supported Dependabot and Renovate pull requests when omitted.
+    required: false
+    default: ""
+  workspace:
+    description: Repository-relative workspace containing the dependency.
+    required: false
+    default: ""
+  engine:
+    description: Decision engine, either deterministic or jev.
+    required: false
+    default: deterministic
+  patch-model:
+    description: Optional model id for repository-specific test and migration proposals. Requires engine jev and OPENAI_API_KEY.
+    required: false
+    default: ""
+  confidence:
+    description: Minimum Jev confidence before deterministic routing is used.
+    required: false
+    default: ""
+  allow-transitive:
+    description: Allow related transitive lockfile movement to be assessed.
+    required: false
+    default: "false"
+  partial-allowed:
+    description: Return success for a partial result while keeping the result classified as partial.
+    required: false
+    default: "false"
+  comment:
+    description: Post the safe-upgrade result on a pull request.
+    required: false
+    default: "true"
+  github-token:
+    description: GitHub token used to comment on a pull request.
+    required: false
+    default: ${{ github.token }}
+  authorization-mode:
+    description: Use development for a self-authorized trial or production for an externally issued Tenuo run warrant.
+    required: false
+    default: development
+  safe-upgrade-version:
+    description: Published @tenuo/safe-upgrade version to execute.
+    required: false
+    default: "0.1.0"
+  working-directory:
+    description: Checked-out repository to assess.
+    required: false
+    default: ${{ github.workspace }}
+
+outputs:
+  status:
+    description: safe-upgrade classification when a run completed.
+    value: ${{ steps.assess.outputs.status }}
+  exit-code:
+    description: safe-upgrade process exit code.
+    value: ${{ steps.assess.outputs.exit-code }}
+  report-path:
+    description: Path to the structured report, when one was produced.
+    value: ${{ steps.assess.outputs.report-path }}
+  artifact-path:
+    description: Directory containing the complete run record.
+    value: ${{ steps.assess.outputs.artifact-path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Prepare process isolation
+      shell: bash
+      run: |
+        if [[ "${RUNNER_OS:-}" != "Linux" ]]; then
+          echo "safe-upgrade-action currently supports Linux runners" >&2
+          exit 1
+        fi
+        if [[ ! -x /usr/bin/bwrap ]]; then
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends bubblewrap
+        fi
+
+    - name: Use Node 22
+      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      with:
+        node-version: "22.18"
+
+    - name: Assess dependency upgrade
+      id: assess
+      shell: bash
+      env:
+        SAFE_UPGRADE_INPUT_PACKAGE: ${{ inputs.package }}
+        SAFE_UPGRADE_INPUT_VERSION: ${{ inputs.version }}
+        SAFE_UPGRADE_INPUT_WORKSPACE: ${{ inputs.workspace }}
+        SAFE_UPGRADE_INPUT_ENGINE: ${{ inputs.engine }}
+        SAFE_UPGRADE_INPUT_PATCH_MODEL: ${{ inputs.patch-model }}
+        SAFE_UPGRADE_INPUT_CONFIDENCE: ${{ inputs.confidence }}
+        SAFE_UPGRADE_INPUT_ALLOW_TRANSITIVE: ${{ inputs.allow-transitive }}
+        SAFE_UPGRADE_INPUT_PARTIAL_ALLOWED: ${{ inputs.partial-allowed }}
+        SAFE_UPGRADE_INPUT_COMMENT: ${{ inputs.comment }}
+        SAFE_UPGRADE_INPUT_AUTHORIZATION_MODE: ${{ inputs.authorization-mode }}
+        SAFE_UPGRADE_INPUT_CLI_VERSION: ${{ inputs.safe-upgrade-version }}
+        SAFE_UPGRADE_INPUT_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        SAFE_UPGRADE_ACTION_PATH: ${{ github.action_path }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: node "$SAFE_UPGRADE_ACTION_PATH/scripts/run.mjs"
+
+    - name: Upload safe-upgrade record
+      if: ${{ always() && steps.assess.outputs.artifact-path != '' }}
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      with:
+        name: safe-upgrade-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ steps.assess.outputs.artifact-path }}
+        if-no-files-found: warn
+        retention-days: 14
+
+    - name: Apply safe-upgrade result
+      if: ${{ always() && steps.assess.outcome != 'skipped' }}
+      shell: bash
+      env:
+        SAFE_UPGRADE_EXIT_CODE: ${{ steps.assess.outputs.exit-code }}
+      run: |
+        if [[ ! "$SAFE_UPGRADE_EXIT_CODE" =~ ^[0-9]+$ ]]; then
+          echo "safe-upgrade did not produce a valid exit code" >&2
+          exit 70
+        fi
+        exit "$SAFE_UPGRADE_EXIT_CODE"

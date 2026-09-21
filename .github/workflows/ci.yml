@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "22.18"
+      - run: npm test
+      - run: npm run check
+
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "22.18"
+      - name: Prepare fixture repository
+        id: fixture
+        shell: bash
+        run: |
+          fixture="$RUNNER_TEMP/safe-upgrade-action-fixture"
+          cp -R test/fixture "$fixture"
+          npm install --package-lock-only --ignore-scripts --prefix "$fixture"
+          git -C "$fixture" init --initial-branch=main
+          git -C "$fixture" config user.name "Safe Upgrade CI"
+          git -C "$fixture" config user.email "safe-upgrade@invalid"
+          git -C "$fixture" add .
+          git -C "$fixture" commit --message fixture
+          echo "path=$fixture" >> "$GITHUB_OUTPUT"
+      - name: Exercise the composite Action
+        id: safe-upgrade
+        continue-on-error: true
+        uses: ./
+        with:
+          package: postcss
+          version: 8.4.35
+          comment: "false"
+          working-directory: ${{ steps.fixture.outputs.path }}
+      - name: Verify structured output
+        shell: bash
+        env:
+          RESULT_STATUS: ${{ steps.safe-upgrade.outputs.status }}
+          REPORT_PATH: ${{ steps.safe-upgrade.outputs.report-path }}
+        run: |
+          test -n "$RESULT_STATUS"
+          test -f "$REPORT_PATH"
