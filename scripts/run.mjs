@@ -182,7 +182,7 @@ export function annotationsFor(report) {
 async function main() {
   const input = (name, fallback = "") => process.env[name]?.trim() || fallback;
   const workingDirectory = resolve(input("SAFE_UPGRADE_INPUT_WORKING_DIRECTORY", process.cwd()));
-  const cliVersion = input("SAFE_UPGRADE_INPUT_CLI_VERSION", "0.1.0");
+  const cliVersion = input("SAFE_UPGRADE_INPUT_CLI_VERSION", "0.1.2");
   if (!EXACT_VERSION.test(cliVersion)) {
     return failBeforeRun("safe-upgrade-version must be an exact semantic version");
   }
