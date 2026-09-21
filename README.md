@@ -38,8 +38,9 @@ jobs:
 ```
 
 The base revision is intentional. `safe-upgrade` applies the requested release
-inside its own disposable worktree and evaluates the resulting change. The pull
-request's code is not checked out by this workflow.
+inside a disposable clone and worktree, then evaluates the resulting change. The
+pull request's code is not checked out by this workflow, and the caller's checkout
+is left untouched.
 
 ## What appears in GitHub
 

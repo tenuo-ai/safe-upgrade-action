@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -219,6 +219,13 @@ async function main() {
   );
   mkdirSync(artifactRoot, { recursive: true });
 
+  let repositoryCopy;
+  try {
+    repositoryCopy = await copyCommittedRepository(workingDirectory);
+  } catch (error) {
+    return failBeforeRun(`could not prepare the repository: ${messageOf(error)}`);
+  }
+
   const args = ["--yes", `@tenuo/safe-upgrade@${cliVersion}`];
   args.push(`${target.packageName}@${target.targetVersion}`);
   for (const companion of target.companions ?? []) {
@@ -227,7 +234,7 @@ async function main() {
   if (target.pullNumber !== null && truthy(input("SAFE_UPGRADE_INPUT_COMMENT", "true"))) {
     args.push("--comment-pr", String(target.pullNumber));
   }
-  args.push("--repository", workingDirectory, "--artifacts", artifactRoot, "--format", "json", "--quiet");
+  args.push("--repository", repositoryCopy.path, "--artifacts", artifactRoot, "--format", "json", "--quiet");
 
   const workspace = input("SAFE_UPGRADE_INPUT_WORKSPACE") || target.workspace || "";
   const engine = input("SAFE_UPGRADE_INPUT_ENGINE", "deterministic");
@@ -244,7 +251,12 @@ async function main() {
   if (authorizationMode === "development") env.NODE_ENV = "development";
   else delete env.NODE_ENV;
 
-  const run = await execute("npx", args, { cwd: workingDirectory, env });
+  let run;
+  try {
+    run = await execute("npx", args, { cwd: repositoryCopy.path, env });
+  } finally {
+    repositoryCopy.release();
+  }
   if (run.stderr) process.stderr.write(run.stderr);
   const stdoutPath = join(artifactRoot, "action-stdout.json");
   writeFileSync(stdoutPath, run.stdout, "utf8");
@@ -328,6 +340,39 @@ function execute(command, args, options) {
     });
     child.on("close", (code) => resolvePromise({ code: code ?? 70, stdout, stderr }));
   });
+}
+
+async function copyCommittedRepository(source) {
+  const parent = mkdtempSync(join(tmpdir(), "safe-upgrade-action-source-"));
+  const destination = join(parent, "repository");
+  const sourceHead = await execute("git", ["rev-parse", "HEAD"], { cwd: source, env: process.env });
+  if (sourceHead.code !== 0 || !/^[0-9a-f]{40}\n?$/.test(sourceHead.stdout)) {
+    rmSync(parent, { recursive: true, force: true });
+    throw new Error("the working directory must be a Git repository with a commit");
+  }
+  const cloned = await execute(
+    "git",
+    ["clone", "--quiet", "--no-local", "--no-hardlinks", "--no-checkout", source, destination],
+    { cwd: tmpdir(), env: process.env },
+  );
+  if (cloned.code !== 0) {
+    rmSync(parent, { recursive: true, force: true });
+    throw new Error(cloned.stderr.trim() || "git clone failed");
+  }
+  const checkedOut = await execute("git", ["checkout", "--quiet", "--detach", sourceHead.stdout.trim()], {
+    cwd: destination,
+    env: process.env,
+  });
+  if (checkedOut.code !== 0) {
+    rmSync(parent, { recursive: true, force: true });
+    throw new Error(checkedOut.stderr.trim() || "git checkout failed");
+  }
+  return {
+    path: destination,
+    release() {
+      rmSync(parent, { recursive: true, force: true });
+    },
+  };
 }
 
 function truthy(value) {
