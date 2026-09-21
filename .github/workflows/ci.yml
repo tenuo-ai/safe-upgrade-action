@@ -54,5 +54,5 @@ jobs:
           RESULT_STATUS: ${{ steps.safe-upgrade.outputs.status }}
           REPORT_PATH: ${{ steps.safe-upgrade.outputs.report-path }}
         run: |
-          test -n "$RESULT_STATUS"
+          test "$RESULT_STATUS" = "verified"
           test -f "$REPORT_PATH"

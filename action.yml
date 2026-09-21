@@ -79,6 +79,8 @@ runs:
   steps:
     - name: Prepare process isolation
       shell: bash
+      env:
+        SAFE_UPGRADE_RUNNER_ENVIRONMENT: ${{ runner.environment }}
       run: |
         if [[ "${RUNNER_OS:-}" != "Linux" ]]; then
           echo "safe-upgrade-action currently supports Linux runners" >&2
@@ -87,6 +89,28 @@ runs:
         if [[ ! -x /usr/bin/bwrap ]]; then
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends bubblewrap
+        fi
+        if [[ "$SAFE_UPGRADE_RUNNER_ENVIRONMENT" = "github-hosted" ]]; then
+          if [[ -e /proc/sys/kernel/unprivileged_userns_clone ]]; then
+            sudo sysctl -w kernel.unprivileged_userns_clone=1
+          fi
+          if [[ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+        fi
+        if ! isolation_error=$(
+          /usr/bin/bwrap \
+            --die-with-parent \
+            --new-session \
+            --unshare-all \
+            --ro-bind / / \
+            --proc /proc \
+            --dev /dev \
+            /bin/true 2>&1
+        ); then
+          echo "Bubblewrap could not create a process sandbox: $isolation_error" >&2
+          echo "Self-hosted runners must permit unprivileged user namespaces." >&2
+          exit 1
         fi
 
     - name: Use Node 22

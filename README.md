@@ -6,7 +6,9 @@ affected files, can comment on the pull request, and attaches the complete evide
 record to the workflow run.
 
 The first release supports Linux runners. Its process isolation layer installs
-Bubblewrap when the runner image does not already provide it.
+Bubblewrap when the runner image does not already provide it. On GitHub-hosted
+runners, setup also enables the user namespaces Bubblewrap needs. Self-hosted
+runners must permit unprivileged user namespaces.
 
 ```yaml
 name: Assess dependency upgrades
