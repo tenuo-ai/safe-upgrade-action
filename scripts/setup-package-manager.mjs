@@ -41,7 +41,10 @@ function main() {
     return;
   }
   const installSpec = npmInstallSpec(spec);
-  const installRoot = join(process.env.RUNNER_TEMP || tmpdir(), "safe-upgrade-package-manager");
+  const visibleTemp = process.platform === "linux" ? "/tmp" : tmpdir();
+  const run = process.env.GITHUB_RUN_ID || "local";
+  const attempt = process.env.GITHUB_RUN_ATTEMPT || "1";
+  const installRoot = join(visibleTemp, `safe-upgrade-package-manager-${run}-${attempt}`);
   mkdirSync(installRoot, { recursive: true });
   run("npm", [
     "install",
