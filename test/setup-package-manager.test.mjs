@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { packageManagerSpec } from "../scripts/setup-package-manager.mjs";
+import { npmInstallSpec, packageManagerSpec } from "../scripts/setup-package-manager.mjs";
 
 test("uses the pnpm version declared by the repository", () => {
   const root = fixture({ packageManager: "pnpm@9.15.9" }, "pnpm-lock.yaml");
@@ -19,6 +19,16 @@ test("uses a compatible pnpm default when the repository omits packageManager", 
 test("leaves npm repositories to setup-node", () => {
   const root = fixture({}, "package-lock.json");
   assert.equal(packageManagerSpec(root), null);
+});
+
+test("removes Corepack integrity suffixes from npm installation specs", () => {
+  const root = fixture({ packageManager: "pnpm@9.15.9+sha512.example" }, "pnpm-lock.yaml");
+  assert.equal(packageManagerSpec(root), "pnpm@9.15.9");
+});
+
+test("installs modern Yarn from its published CLI distribution", () => {
+  assert.equal(npmInstallSpec("yarn@4.9.2"), "@yarnpkg/cli-dist@4.9.2");
+  assert.equal(npmInstallSpec("yarn@1.22.22"), "yarn@1.22.22");
 });
 
 function fixture(manifest, lockfile) {

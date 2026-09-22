@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -15,10 +16,10 @@ export function packageManagerSpec(directory) {
   }
 
   if (existsSync(join(root, "pnpm-lock.yaml"))) {
-    return declared.startsWith("pnpm@") ? declared : "pnpm@9.15.9";
+    return declared.startsWith("pnpm@") ? declared.split("+")[0] : "pnpm@9.15.9";
   }
   if (existsSync(join(root, "yarn.lock"))) {
-    return declared.startsWith("yarn@") ? declared : "yarn@1.22.22";
+    return declared.startsWith("yarn@") ? declared.split("+")[0] : "yarn@1.22.22";
   }
   return null;
 }
@@ -36,8 +37,29 @@ function main() {
   if (!directory) throw new Error("repository directory is required");
   const spec = packageManagerSpec(directory);
   if (spec === null) return;
-  run("corepack", ["prepare", spec, "--activate"]);
-  run("corepack", ["enable"]);
+  const installSpec = npmInstallSpec(spec);
+  const installRoot = join(process.env.RUNNER_TEMP || tmpdir(), "safe-upgrade-package-manager");
+  mkdirSync(installRoot, { recursive: true });
+  run("npm", [
+    "install",
+    "--ignore-scripts",
+    "--no-audit",
+    "--no-fund",
+    "--prefix",
+    installRoot,
+    installSpec,
+  ]);
+  const bin = join(installRoot, "node_modules", ".bin");
+  const githubPath = process.env.GITHUB_PATH;
+  if (!githubPath) throw new Error("GITHUB_PATH is required to expose the package manager");
+  appendFileSync(githubPath, `${bin}\n`);
+}
+
+export function npmInstallSpec(spec) {
+  if (!spec.startsWith("yarn@")) return spec;
+  const version = spec.slice("yarn@".length);
+  const major = Number(version.split(".")[0]);
+  return Number.isInteger(major) && major >= 2 ? `@yarnpkg/cli-dist@${version}` : spec;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
