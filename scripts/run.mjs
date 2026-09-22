@@ -114,6 +114,12 @@ export function renderSummary(report, options = {}) {
   const findings = array(finalState.findings);
   const verified = new Set(stringArray(finalState.verifiedFindingIds));
   const checks = [...array(finalState.baselineChecks), ...array(finalState.postChangeChecks)];
+  const changes = array(finalState.fileChanges);
+  const grantedApprovalIds = new Set(array(report?.approvals).map((approval) => String(asRecord(approval).id ?? "")));
+  const approvals = array(finalState.elevationRequests).filter(
+    (approval) => !grantedApprovalIds.has(String(asRecord(approval).id ?? "")),
+  );
+  const unverified = stringArray(result.unverifiedClaims);
   const packageName = String(request.packageName ?? options.packageName ?? "dependency");
   const currentVersion = String(facts.currentVersion ?? "unknown");
   const targetVersion = String(request.targetVersion ?? options.targetVersion ?? "unknown");
@@ -121,6 +127,8 @@ export function renderSummary(report, options = {}) {
     `## safe-upgrade: ${status}`,
     "",
     `\`${packageName}\` ${currentVersion} → ${targetVersion}`,
+    "",
+    maintainerDecision(status),
     "",
   ];
 
@@ -131,20 +139,24 @@ export function renderSummary(report, options = {}) {
     );
   }
   if (reasons.length > 0) {
-    lines.push("### Why", "", ...reasons.map((reason) => `- ${escapeMarkdown(reason)}`), "");
+    lines.push("### Decision evidence", "", ...reasons.map((reason) => `- ${escapeMarkdown(reason)}`), "");
   }
   if (findings.length > 0) {
-    lines.push("### Repository findings", "");
+    lines.push("### Repository impact", "");
     for (const rawFinding of findings) {
       const finding = asRecord(rawFinding);
       const id = String(finding.id ?? "finding");
       const claim = String(finding.releaseClaim ?? "Finding recorded");
       const marker = verified.has(id) ? "verified" : "unverified";
-      lines.push(`- **${escapeMarkdown(id)}** (${marker}): ${escapeMarkdown(claim)}`);
+      lines.push(`- **${escapeMarkdown(claim)}** (${marker})`);
       const files = stringArray(finding.affectedFiles);
       if (files.length > 0) {
-        lines.push(`  - Files: ${files.map((file) => `\`${escapeCode(file)}\``).join(", ")}`);
+        lines.push(`  - Affected code: ${files.map((file) => `\`${escapeCode(file)}\``).join(", ")}`);
+      } else {
+        lines.push("  - Affected code: no repository call site identified");
       }
+      const requiredChange = String(finding.requiredChange ?? "");
+      if (requiredChange) lines.push(`  - Required work: ${escapeMarkdown(requiredChange)}`);
     }
     lines.push("");
   }
@@ -159,8 +171,63 @@ export function renderSummary(report, options = {}) {
     }
     lines.push("");
   }
+  if (changes.length > 0) {
+    lines.push("### Candidate changes", "");
+    for (const rawChange of changes) {
+      const change = asRecord(rawChange);
+      lines.push(
+        `- \`${escapeCode(String(change.path ?? "unknown"))}\` by ${escapeMarkdown(String(change.owner ?? "worker"))}: ${escapeMarkdown(String(change.reason ?? "change recorded"))}`,
+      );
+    }
+    lines.push("");
+  }
+  const authority = delegatedAuthority(report);
+  if (authority.length > 0) {
+    lines.push("### Delegated authority exercised", "", ...authority.map((item) => `- ${escapeMarkdown(item)}`), "");
+  }
+  if (status === "human_required" && approvals.length > 0) {
+    lines.push("### Maintainer action", "");
+    for (const rawApproval of approvals) {
+      const approval = asRecord(rawApproval);
+      const id = String(approval.id ?? "");
+      lines.push(
+        `- ${escapeMarkdown(String(approval.worker ?? "worker"))} requests \`${escapeCode(String(approval.capability ?? "capability"))}\`: ${escapeMarkdown(String(approval.reason ?? "approval required"))}`,
+        `  - Approval id: \`${escapeCode(id)}\``,
+        `  - Re-run with \`--approve ${escapeCode(id)} --approved-by <who>\``,
+      );
+    }
+    lines.push("");
+  } else if (unverified.length > 0) {
+    lines.push("### Still unverified", "", ...unverified.map((claim) => `- ${escapeMarkdown(claim)}`), "");
+  }
   lines.push("The complete evidence record is attached to this workflow run.", "");
   return lines.join("\n");
+}
+
+function maintainerDecision(status) {
+  const decisions = {
+    verified: "The upgrade is supported by repository evidence and its required checks passed. Review the dependency diff normally.",
+    partial: "Hold the merge until the remaining gaps below are resolved.",
+    human_required: "A scoped operation needs maintainer approval before the assessment can finish.",
+    blocked: "Hold the merge. The assessment reached a condition it could not resolve safely.",
+    indeterminate: "Hold the merge. The available evidence was insufficient to classify this upgrade.",
+  };
+  return decisions[status] ?? decisions.indeterminate;
+}
+
+function delegatedAuthority(report) {
+  const byWorker = new Map();
+  for (const rawEvent of array(report?.events)) {
+    const event = asRecord(rawEvent);
+    if (event.type !== "session_delegated") continue;
+    const worker = String(event.worker ?? "worker");
+    const held = byWorker.get(worker) ?? new Set();
+    for (const capability of stringArray(asRecord(event.payload).capabilities)) held.add(capability);
+    byWorker.set(worker, held);
+  }
+  return [...byWorker.entries()].map(([worker, capabilities]) =>
+    `${worker}: ${capabilities.size > 0 ? [...capabilities].join(", ") : "no protected tools"}`,
+  );
 }
 
 export function annotationsFor(report) {

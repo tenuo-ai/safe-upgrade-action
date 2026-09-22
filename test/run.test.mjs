@@ -95,7 +95,37 @@ test("renders findings and verification into the job summary", () => {
   assert.match(summary, /postcss/);
   assert.match(summary, /src\/prefix\.js/);
   assert.match(summary, /self-authorized trial mode/);
+  assert.match(summary, /Hold the merge/);
+  assert.match(summary, /Required work: replace prefix\(\)/);
   assert.match(summary, /\| final \| test \| failed \|/);
+});
+
+test("renders candidate changes, delegated authority, and exact maintainer approval", () => {
+  const report = fixtureReport();
+  report.result.status = "human_required";
+  report.finalState.fileChanges = [
+    { path: "src/prefix.js", owner: "implementer", reason: "replace removed export" },
+  ];
+  report.finalState.elevationRequests = [
+    {
+      id: "approval-123",
+      worker: "implementer",
+      capability: "write_source_file",
+      reason: "update the affected call site",
+    },
+  ];
+  report.events = [
+    {
+      type: "session_delegated",
+      worker: "implementer",
+      payload: { capabilities: ["read_file", "write_source_file"] },
+    },
+  ];
+
+  const summary = renderSummary(report);
+  assert.match(summary, /Candidate changes/);
+  assert.match(summary, /implementer: read\\_file, write\\_source\\_file/);
+  assert.match(summary, /--approve approval-123 --approved-by/);
 });
 
 test("annotates affected files and marks unverified findings as warnings", () => {
@@ -120,6 +150,7 @@ function fixtureReport() {
           id: "api-removed",
           releaseClaim: "prefix() was removed",
           affectedFiles: ["src/prefix.js"],
+          requiredChange: "replace prefix()",
         },
       ],
       baselineChecks: [],
