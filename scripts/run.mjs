@@ -293,13 +293,15 @@ async function main() {
     return failBeforeRun(`could not prepare the repository: ${messageOf(error)}`);
   }
 
-  const args = [
-    "exec",
-    "--yes",
-    `--package=@tenuo/safe-upgrade@${cliVersion}`,
-    "--",
-    "safe-upgrade",
-  ];
+  let cliInstall;
+  try {
+    cliInstall = await installCli(cliVersion);
+  } catch (error) {
+    repositoryCopy.release();
+    return failBeforeRun(`could not install @tenuo/safe-upgrade@${cliVersion}: ${messageOf(error)}`);
+  }
+
+  const args = [];
   args.push(`${target.packageName}@${target.targetVersion}`);
   for (const companion of target.companions ?? []) {
     args.push("--companion", `${companion.packageName}@${companion.targetVersion}`);
@@ -326,9 +328,10 @@ async function main() {
 
   let run;
   try {
-    run = await execute("npm", args, { cwd: repositoryCopy.path, env });
+    run = await execute(cliInstall.executable, args, { cwd: repositoryCopy.path, env });
   } finally {
     repositoryCopy.release();
+    cliInstall.release();
   }
   if (run.stderr) process.stderr.write(run.stderr);
   const stdoutPath = join(artifactRoot, "action-stdout.json");
@@ -442,6 +445,33 @@ async function copyCommittedRepository(source) {
   }
   return {
     path: destination,
+    release() {
+      rmSync(parent, { recursive: true, force: true });
+    },
+  };
+}
+
+async function installCli(version) {
+  const parent = mkdtempSync(join(tmpdir(), "safe-upgrade-action-cli-"));
+  const installed = await execute(
+    "npm",
+    [
+      "install",
+      "--ignore-scripts",
+      "--no-audit",
+      "--no-fund",
+      "--prefix",
+      parent,
+      `@tenuo/safe-upgrade@${version}`,
+    ],
+    { cwd: tmpdir(), env: process.env },
+  );
+  if (installed.code !== 0) {
+    rmSync(parent, { recursive: true, force: true });
+    throw new Error(installed.stderr.trim() || installed.stdout.trim() || "npm install failed");
+  }
+  return {
+    executable: join(parent, "node_modules", ".bin", "safe-upgrade"),
     release() {
       rmSync(parent, { recursive: true, force: true });
     },
