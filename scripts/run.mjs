@@ -293,7 +293,13 @@ async function main() {
     return failBeforeRun(`could not prepare the repository: ${messageOf(error)}`);
   }
 
-  const args = ["--yes", `@tenuo/safe-upgrade@${cliVersion}`];
+  const args = [
+    "exec",
+    "--yes",
+    `--package=@tenuo/safe-upgrade@${cliVersion}`,
+    "--",
+    "safe-upgrade",
+  ];
   args.push(`${target.packageName}@${target.targetVersion}`);
   for (const companion of target.companions ?? []) {
     args.push("--companion", `${companion.packageName}@${companion.targetVersion}`);
@@ -320,7 +326,7 @@ async function main() {
 
   let run;
   try {
-    run = await execute("npx", args, { cwd: repositoryCopy.path, env });
+    run = await execute("npm", args, { cwd: repositoryCopy.path, env });
   } finally {
     repositoryCopy.release();
   }

@@ -1,5 +1,5 @@
 {
-  "name": "safe-upgrade-action-fixture",
+  "name": "@tenuo/safe-upgrade",
   "version": "1.0.0",
   "private": true,
   "scripts": {
