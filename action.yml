@@ -121,12 +121,9 @@ runs:
     - name: Enable the repository package manager
       shell: bash
       env:
+        SAFE_UPGRADE_ACTION_PATH: ${{ github.action_path }}
         SAFE_UPGRADE_WORKING_DIRECTORY: ${{ inputs.working-directory }}
-      run: |
-        cd "$SAFE_UPGRADE_WORKING_DIRECTORY"
-        if [[ -f pnpm-lock.yaml || -f yarn.lock ]]; then
-          corepack enable
-        fi
+      run: node "$SAFE_UPGRADE_ACTION_PATH/scripts/setup-package-manager.mjs" "$SAFE_UPGRADE_WORKING_DIRECTORY"
 
     - name: Assess dependency upgrade
       id: assess

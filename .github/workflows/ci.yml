@@ -32,8 +32,8 @@ jobs:
         run: |
           fixture="$RUNNER_TEMP/safe-upgrade-action-fixture"
           cp -R test/fixture "$fixture"
-          corepack enable
-          corepack pnpm --dir "$fixture" install --lockfile-only --ignore-scripts
+          node scripts/setup-package-manager.mjs "$fixture"
+          pnpm --dir "$fixture" install --lockfile-only --ignore-scripts
           git -C "$fixture" init --initial-branch=main
           git -C "$fixture" config user.name "Safe Upgrade CI"
           git -C "$fixture" config user.email "safe-upgrade@invalid"
