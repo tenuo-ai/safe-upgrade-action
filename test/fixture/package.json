@@ -2,6 +2,7 @@
   "name": "@tenuo/safe-upgrade",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "pnpm@9.15.9",
   "scripts": {
     "test": "node --test"
   },

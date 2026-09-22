@@ -118,6 +118,16 @@ runs:
       with:
         node-version: "22.18"
 
+    - name: Enable the repository package manager
+      shell: bash
+      env:
+        SAFE_UPGRADE_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+      run: |
+        cd "$SAFE_UPGRADE_WORKING_DIRECTORY"
+        if [[ -f pnpm-lock.yaml || -f yarn.lock ]]; then
+          corepack enable
+        fi
+
     - name: Assess dependency upgrade
       id: assess
       shell: bash
