@@ -36,7 +36,10 @@ function main() {
   const directory = process.argv[2];
   if (!directory) throw new Error("repository directory is required");
   const spec = packageManagerSpec(directory);
-  if (spec === null) return;
+  if (spec === null) {
+    writeOutput("");
+    return;
+  }
   const installSpec = npmInstallSpec(spec);
   const installRoot = join(process.env.RUNNER_TEMP || tmpdir(), "safe-upgrade-package-manager");
   mkdirSync(installRoot, { recursive: true });
@@ -53,6 +56,13 @@ function main() {
   const githubPath = process.env.GITHUB_PATH;
   if (!githubPath) throw new Error("GITHUB_PATH is required to expose the package manager");
   appendFileSync(githubPath, `${bin}\n`);
+  writeOutput(bin);
+}
+
+function writeOutput(bin) {
+  const output = process.env.GITHUB_OUTPUT;
+  if (!output) throw new Error("GITHUB_OUTPUT is required to report the package manager path");
+  appendFileSync(output, `bin=${bin}\n`);
 }
 
 export function npmInstallSpec(spec) {

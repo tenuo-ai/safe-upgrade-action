@@ -323,6 +323,10 @@ async function main() {
   if (truthy(input("SAFE_UPGRADE_INPUT_PARTIAL_ALLOWED", "false"))) args.push("--partial-allowed");
 
   const env = { ...process.env };
+  const packageManagerBin = input("SAFE_UPGRADE_PACKAGE_MANAGER_BIN");
+  if (packageManagerBin) {
+    env.PATH = `${packageManagerBin}:${env.PATH ?? ""}`;
+  }
   if (authorizationMode === "development") env.NODE_ENV = "development";
   else delete env.NODE_ENV;
 

@@ -119,6 +119,7 @@ runs:
         node-version: "22.18"
 
     - name: Enable the repository package manager
+      id: package-manager
       shell: bash
       env:
         SAFE_UPGRADE_ACTION_PATH: ${{ github.action_path }}
@@ -141,6 +142,7 @@ runs:
         SAFE_UPGRADE_INPUT_AUTHORIZATION_MODE: ${{ inputs.authorization-mode }}
         SAFE_UPGRADE_INPUT_CLI_VERSION: ${{ inputs.safe-upgrade-version }}
         SAFE_UPGRADE_INPUT_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        SAFE_UPGRADE_PACKAGE_MANAGER_BIN: ${{ steps.package-manager.outputs.bin }}
         SAFE_UPGRADE_ACTION_PATH: ${{ github.action_path }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
       run: node "$SAFE_UPGRADE_ACTION_PATH/scripts/run.mjs"
