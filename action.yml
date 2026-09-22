@@ -54,7 +54,7 @@ inputs:
   safe-upgrade-version:
     description: Published @tenuo/safe-upgrade version to execute.
     required: false
-    default: "0.1.3"
+    default: "0.1.4"
   working-directory:
     description: Checked-out repository to assess.
     required: false
