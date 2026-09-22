@@ -435,13 +435,14 @@ async function copyCommittedRepository(source) {
     rmSync(parent, { recursive: true, force: true });
     throw new Error(cloned.stderr.trim() || "git clone failed");
   }
-  const checkedOut = await execute("git", ["checkout", "--quiet", "--detach", sourceHead.stdout.trim()], {
-    cwd: destination,
-    env: process.env,
-  });
+  const checkedOut = await execute(
+    "git",
+    ["checkout", "--quiet", "-B", "safe-upgrade-action/base", sourceHead.stdout.trim()],
+    { cwd: destination, env: process.env },
+  );
   if (checkedOut.code !== 0) {
     rmSync(parent, { recursive: true, force: true });
-    throw new Error(checkedOut.stderr.trim() || "git checkout failed");
+    throw new Error(checkedOut.stderr.trim() || "git checkout of the disposable base branch failed");
   }
   return {
     path: destination,
